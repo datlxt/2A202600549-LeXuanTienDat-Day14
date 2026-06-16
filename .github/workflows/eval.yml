@@ -1,0 +1,44 @@
+name: StudyMate AI Evaluation Gate
+
+# Eval as a quality gate: runs on every push / PR and before merge to main.
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  evaluate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: python -m pip install --upgrade pip pytest
+
+      # Gate 1 — evaluation engine must be correct (unit tests).
+      - name: Run pytest (eval engine + custom metric)
+        run: python -m pytest tests/ -v
+
+      # Gate 2 — benchmark must not regress vs the committed baseline.
+      - name: Regression quality gate
+        run: python ci_gate.py
+
+      # Optional — publish the full benchmark report as a build artifact.
+      - name: Generate benchmark report
+        if: always()
+        run: python run_benchmark.py > benchmark_report.md
+
+      - name: Upload benchmark report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: benchmark-report
+          path: benchmark_report.md
